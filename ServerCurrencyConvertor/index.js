@@ -1,23 +1,23 @@
 const express = require('express');
-const getExchangeRateBCCR = require('./Controller/BCCRApi');
+const getExchangeRateBCCR = require('./Controller/BCCRApi'); // Asegúrate de que esta ruta sea correcta
 const app = express();
 
 // Ruta inicial para obtener el tipo de cambio
 app.get('/', async (req, res) => {
   try {
-    const compra = await getExchangeRateBCCR(317); // Indicador 317: Tipo de cambio de compra
-    const venta = await getExchangeRateBCCR(318);  // Indicador 318: Tipo de cambio de venta
+    const email = 'jaimmartinez13@gmail.com'; 
+    const token = 'R3D3M2BIE2'; 
+    const today = new Date();
+    const fechaHoy = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
 
-    res.json({
-      compra,
-      venta,
-    });
+    const exchangeRate = await getExchangeRateBCCR(email, token, fechaHoy, fechaHoy);
+    res.status(200).json(exchangeRate); 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error al obtener el tipo de cambio:', error.message);
+    res.status(500).json({ error: 'Ocurrió un error al obtener el tipo de cambio.' });
   }
 });
 
-// Configuración del puerto
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);

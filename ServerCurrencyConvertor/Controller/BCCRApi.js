@@ -1,55 +1,51 @@
 const axios = require('axios');
-const { parseStringPromise } = require('xml2js');
+const { DOMParser } = require('xmldom');
+const { format } = require('date-fns');
 
-// Configuración del SOAP Request
-function createSoapRequest(indicator) {
-    return `
-      <soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
-        <soap12:Body>
-          <ObtenerIndicadoresEconomicosXML xmlns="http://ws.sdde.bccr.fi.cr">
-            <tcIndicador>${parseInt(indicator, 10)}</tcIndicador>
-            <tcFechaInicio>${getToday()}</tcFechaInicio>
-            <tcFechaFinal>${getToday()}</tcFechaFinal>
-            <tcNombre>MiNombre</tcNombre>
-            <tnSubNiveles>N</tnSubNiveles>
-          </ObtenerIndicadoresEconomicosXML>
-        </soap12:Body>
-      </soap12:Envelope>
-    `;
-  }
-  
+function indicadoresEconomicosBCCR(email, token, fechaInicio, fechaFinal) {
+    try {
+        const todayDate = format(new Date(), 'dd/MM/yyyy');
+        const BCCRurl = 'https://gee.bccr.fi.cr/Indicadores/Suscripciones/WS/wsindicadoreseconomicos.asmx/ObtenerIndicadoresEconomicos';
 
-// Función para obtener la fecha actual en formato YYYY-MM-DD
-function getToday() {
-  const today = new Date();
-  return today.toISOString().split('T')[0];
+        const payload = {
+            FechaInicio: fechaInicio || todayDate,
+            FechaFinal: fechaFinal || todayDate,
+            Nombre: 'N',
+            SubNiveles: 'N',
+            Indicador: 317,
+            CorreoElectronico: email,
+            Token: token,
+        };
+
+        const postCompra = axios.post(BCCRurl, payload, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        payload.Indicador = 318;
+
+        const postVenta = axios.post(BCCRurl, payload, {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+
+        return Promise.all([postCompra, postVenta])
+            .then(([compra, venta]) => {
+                const compraNode = new DOMParser().parseFromString(compra.data, 'text/xml');
+                const ventaNode = new DOMParser().parseFromString(venta.data, 'text/xml');
+
+                return {
+                    compra: parseFloat(compraNode.documentElement.getElementsByTagName('NUM_VALOR')[0].childNodes[0].nodeValue).toFixed(2),
+                    venta: parseFloat(ventaNode.documentElement.getElementsByTagName('NUM_VALOR')[0].childNodes[0].nodeValue).toFixed(2),
+                };
+            })
+            .catch(error => {
+                console.error('Error en las solicitudes:', error.message);
+                throw new Error('No se pudo obtener los indicadores económicos');
+            });
+
+    } catch (error) {
+        console.error('Error en la función:', error.message);
+        throw new Error('Error al procesar los datos de indicadores económicos');
+    }
 }
 
-// Consumir la API del Banco Central
-async function getExchangeRateBCCR(indicator) {
-  const soapRequest = createSoapRequest(indicator);
-  try {
-    const response = await axios.post(
-      'https://gee.bccr.fi.cr/Indicadores/Suscripciones/WS/wsindicadoreseconomicos.asmx',
-      soapRequest,
-      {
-        headers: {
-          'Content-Type': 'application/soap+xml; charset=utf-8',
-        },
-      }
-    );
-
-    // Convertir respuesta XML a JSON
-    const json = await parseStringPromise(response.data);
-
-    // Extraer los datos
-    const data = json['soap:Envelope']['soap:Body'][0]['ObtenerIndicadoresEconomicosXMLResponse'][0]['ObtenerIndicadoresEconomicosXMLResult'][0];
-    return data;
-
-  } catch (error) {
-    console.error('Error al consumir la API:', error.message);
-    throw new Error('No se pudo obtener el tipo de cambio');
-  }
-}
-
-module.exports = getExchangeRateBCCR;
+module.exports = indicadoresEconomicosBCCR;
