@@ -4,8 +4,8 @@ import Button from './ButtonPlus';
 const Currencies = () => {
   useRef( getColtoUsd = () => {
     
-  }
-  getColtoUsd();
+  },
+  getColtoUsd()
     ,[]);
 
   // Mantener la lista de inputs
